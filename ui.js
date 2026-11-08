@@ -1,8 +1,8 @@
 // ui.js
 // Contains all functions related to updating and rendering the user interface.
 
-import { escapeHTML, formatThaiDateArabic, formatThaiDateRangeArabic } from './utils.js';
-import { exportSingleReportToExcel } from './utils.js'; // Import the export function
+import { escapeHTML, formatThaiDateArabic, formatThaiDateRangeArabic, buildTaf025StatusOptionsHtml, normalizeTaf025Status } from './utils.js?v=43';
+import { exportSingleReportToExcel } from './utils.js?v=43'; // Import the export function
 
 const ITEMS_PER_PAGE = 15;
 
@@ -24,24 +24,250 @@ export const thai_locale = {
     era: "พ.ศ.",
 };
 
+
+// --- Personnel constants for Fix 28 ---
+export const PERSONNEL_TYPE_OPTIONS = [
+    { key: '', label: 'ทั้งหมด' },
+    { key: 'officer', label: 'สัญญาบัตร' },
+    { key: 'nco', label: 'ประทวน' },
+    { key: 'civilian', label: 'ลูกจ้างประจำและพนักงานราชการ' },
+];
+
+export const AIR_FORCE_SPECIALTIES = [
+    ['ทหารอากาศ', 'ทอ.'],
+    ['ทหารนักบิน', 'นบ.'],
+    ['ทหารต้นหน', 'ตห.'],
+    ['ทหารตรวจการณ์', 'ตก.'],
+    ['ทหารทิ้งระเบิด', 'รบ.'],
+    ['ทหารสื่อสาร', 'ส.'],
+    ['ทหารสรรพาวุธ', 'สพ.'],
+    ['ทหารอากาศโยธิน', 'อย.'],
+    ['ทหารขนส่ง', 'ขส.'],
+    ['ทหารสารวัตร', 'สห.'],
+    ['ทหารช่างอากาศ', 'ชอ.'],
+    ['ทหารพลาธิการ', 'พธ.'],
+    ['ทหารช่างโยธา', 'ชย.'],
+    ['ทหารแผนที่', 'ผท.'],
+    ['ทหารอุตุ', 'อต.'],
+    ['ทหารถ่ายรูป', 'ถร.'],
+    ['ทหารการเงิน', 'กง.'],
+    ['ทหารพระธรรมนูญ', 'ธน.'],
+    ['ทหารดุริยางค์', 'ดย.'],
+    ['ทหารสารบรรณ', 'สบ.'],
+    ['ทหารแพทย์', 'พ.'],
+    ['ทหารพลร่ม', 'พร.'],
+    ['ทหารพัสดุ', 'พด.'],
+    ['ทหารวิทยาศาสตร์', 'วท.'],
+];
+
+const OFFICER_RANKS = ['น.อ.(พ)', 'น.อ.หม่อมหลวง', 'น.อ.', 'น.ท.', 'น.ต.', 'ร.อ.', 'ร.ท.', 'ร.ต.', 'น.อ.(พ).หญิง', 'น.อ.หญิง', 'น.ท.หญิง', 'น.ต.หญิง', 'ร.อ.หญิง', 'ร.ท.หญิง', 'ร.ต.หญิง'];
+const NCO_RANKS = ['พ.อ.อ.(พ)', 'พ.อ.อ.หญิง(พ)', 'พ.อ.อ.', 'พ.อ.ท.', 'พ.อ.ต.', 'จ.อ.', 'จ.ท.', 'จ.ต.', 'พ.อ.อ.หญิง', 'พ.อ.ท.หญิง', 'พ.อ.ต.หญิง', 'จ.อ.หญิง', 'จ.ท.หญิง', 'จ.ต.หญิง'];
+const CIVILIAN_RANKS = ['นาย', 'นาง', 'นางสาว', 'ลูกจ้างประจำ', 'พนักงานราชการ'];
+
+
+function canonicalSpecialtyValue(value) {
+    const raw = (value || '').trim();
+    if (!raw) return '';
+    for (const [name, abbr] of AIR_FORCE_SPECIALTIES) {
+        const full = `${name} (${abbr})`;
+        if (raw === full || raw === name || raw === abbr) return full;
+    }
+    return raw;
+}
+
+export function getPersonnelTypeKey(rank) {
+    if (OFFICER_RANKS.includes(rank)) return 'officer';
+    if (NCO_RANKS.includes(rank)) return 'nco';
+    if (CIVILIAN_RANKS.includes(rank)) return 'civilian';
+    return '';
+}
+
+export function getPersonnelTypeLabel(rank) {
+    const key = getPersonnelTypeKey(rank);
+    if (key === 'officer') return 'สัญญาบัตร';
+    if (key === 'nco') return 'ประทวน';
+    if (key === 'civilian') return 'ลูกจ้างประจำและพนักงานราชการ';
+    return 'ไม่ระบุ';
+}
+
+export function buildPersonnelTypeFilter(containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    container.innerHTML = PERSONNEL_TYPE_OPTIONS.map((item, index) => `
+        <button type="button" data-type="${escapeHTML(item.key)}"
+            class="personnel-type-filter-btn px-3 py-2 rounded-lg border text-sm ${index === 0 ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 hover:bg-blue-50'}">
+            ${escapeHTML(item.label)}
+        </button>
+    `).join('');
+    container.dataset.activeType = '';
+}
+
+function setPersonnelTypeFilter(container, type) {
+    container.dataset.activeType = type || '';
+    container.querySelectorAll('.personnel-type-filter-btn').forEach(btn => {
+        const active = (btn.dataset.type || '') === (type || '');
+        btn.className = active
+            ? 'personnel-type-filter-btn px-3 py-2 rounded-lg border text-sm bg-blue-600 text-white border-blue-600'
+            : 'personnel-type-filter-btn px-3 py-2 rounded-lg border text-sm bg-white text-gray-700 hover:bg-blue-50';
+    });
+}
+
+export function handlePersonnelTypeFilterClick(e, callback) {
+    const btn = e.target.closest('.personnel-type-filter-btn');
+    if (!btn) return;
+    const container = btn.closest('[data-active-type]');
+    if (!container) return;
+    const selectedType = btn.dataset.type || '';
+    setPersonnelTypeFilter(container, selectedType);
+
+    const specialtyFilterId = container.id === 'my-personnel-type-filter'
+        ? 'my-personnel-specialty-filter'
+        : 'personnel-specialty-filter';
+    const specialtyFilter = document.getElementById(specialtyFilterId);
+    if (specialtyFilter) {
+        const isCivilian = selectedType === 'civilian';
+        specialtyFilter.disabled = isCivilian;
+        if (isCivilian) specialtyFilter.value = '';
+        specialtyFilter.classList.toggle('opacity-50', isCivilian);
+        specialtyFilter.classList.toggle('cursor-not-allowed', isCivilian);
+    }
+
+    if (typeof callback === 'function') callback(selectedType);
+}
+
+export function populateSpecialtyDropdowns() {
+    const selects = document.querySelectorAll('.air-force-specialty-select, #person-specialty, #personnel-specialty-filter, #my-personnel-specialty-filter');
+    selects.forEach(select => {
+        if (!select) return;
+        const isFilter = select.id && select.id.includes('filter');
+        const currentValue = select.value;
+        select.innerHTML = isFilter ? '<option value="">ทุกเหล่า</option>' : '<option value="">-- เลือกเหล่า --</option>';
+        AIR_FORCE_SPECIALTIES.forEach(([name, abbr]) => {
+            const value = `${name} (${abbr})`;
+            const option = document.createElement('option');
+            option.value = value;
+            option.textContent = value;
+            select.appendChild(option);
+        });
+        if (currentValue) {
+            select.value = currentValue;
+        }
+    });
+}
+
+export function updatePersonnelSpecialtyVisibility() {
+    const rankSelect = document.getElementById('person-rank');
+    const specialtySelect = document.getElementById('person-specialty');
+    const wrapper = document.getElementById('person-specialty-wrapper');
+    if (!rankSelect || !specialtySelect) return;
+    const isCivilian = getPersonnelTypeKey(rankSelect.value) === 'civilian';
+    if (wrapper) wrapper.classList.toggle('hidden', isCivilian);
+    specialtySelect.disabled = isCivilian;
+    specialtySelect.required = !isCivilian;
+    if (isCivilian) specialtySelect.value = '';
+}
+
+function fillDepartmentFilter(selectId, departments = []) {
+    const select = document.getElementById(selectId);
+    if (!select || select.dataset.loaded === '1') return;
+    const currentValue = select.value;
+    select.innerHTML = '<option value="">ทุกแผนก</option>';
+    departments.forEach(dept => {
+        if (!dept) return;
+        const option = document.createElement('option');
+        option.value = dept;
+        option.textContent = dept;
+        select.appendChild(option);
+    });
+    select.value = currentValue;
+    select.dataset.loaded = '1';
+}
+
+function fillPrintDepartmentSelect(departments = []) {
+    const select = document.getElementById('print-personnel-department-select');
+    if (!select) return;
+    const currentValue = select.value;
+    select.innerHTML = '<option value="">เลือกแผนกเพื่อพิมพ์รายชื่อ</option>';
+    departments.forEach(dept => {
+        if (!dept) return;
+        const option = document.createElement('option');
+        option.value = dept;
+        option.textContent = dept;
+        select.appendChild(option);
+    });
+    select.value = departments.includes(currentValue) ? currentValue : '';
+}
+
+function renderPersonnelSummary(containerId, summary = {}, title = 'สรุปกำลังพล') {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    const cards = [
+        ['ทั้งหมด', summary.total || 0, 'bg-slate-50 text-slate-700'],
+        ['สัญญาบัตร', summary.officer || 0, 'bg-blue-50 text-blue-700'],
+        ['ประทวน', summary.nco || 0, 'bg-emerald-50 text-emerald-700'],
+        ['ลูกจ้างประจำและพนักงานราชการ', summary.civilian || 0, 'bg-amber-50 text-amber-700'],
+    ];
+    container.innerHTML = cards.map(([label, value, cls]) => `
+        <div class="p-4 rounded-lg border ${cls}">
+            <p class="text-xs font-medium opacity-80">${escapeHTML(label)}</p>
+            <p class="text-2xl font-bold mt-1">${value}</p>
+        </div>
+    `).join('');
+}
+
 // --- Color settings for statuses ---
 const STATUS_COLORS = {
+    'ปฏิบัติงานในหน่วย': 'bg-emerald-50',
     'ราชการ': 'bg-blue-50',
     'คุมงาน': 'bg-indigo-50',
     'ศึกษา': 'bg-purple-50',
+    'อบรม/ฝึก': 'bg-violet-50',
+    'ช่วยราชการ': 'bg-cyan-50',
+    'ป่วยที่ รพ.': 'bg-orange-50',
+    'ลาป่วยนอก รพ.': 'bg-yellow-50',
     'ลากิจ': 'bg-red-50',
     'ลาพักผ่อน': 'bg-green-50',
-    'ลาป่วย': 'bg-yellow-50',
+    'ลาคลอด': 'bg-pink-50',
+    'ลาช่วยภรรยาเลี้ยงดูบุตร': 'bg-pink-50',
+    'ลาอุปสมบท': 'bg-amber-50',
+    'ประกอบพิธีทางศาสนาอิสลาม': 'bg-amber-50',
+    'โทษ': 'bg-red-100',
+    'ขาด': 'bg-red-100',
+    'หนี': 'bg-red-100',
+    'ต้องโทษคดีอาญา': 'bg-red-100',
+    'เสียชีวิต': 'bg-gray-200',
+    'สาบสูญ': 'bg-gray-200',
+    'สรก.และพักราชการ': 'bg-gray-100',
+    'ส่วนขึ้นสมทบ': 'bg-teal-50',
+    'เกษียณอายุราชการ': 'bg-gray-100',
 };
 
 // --- Color settings for the chart ---
 const CHART_STATUS_COLORS = {
     'ว่าง': '#4CAF50',
+    'ปฏิบัติงานในหน่วย': '#10B981',
     'ราชการ': '#3B82F6',
     'คุมงาน': '#6366F1',
     'ศึกษา': '#8B5CF6',
+    'อบรม/ฝึก': '#7C3AED',
+    'ช่วยราชการ': '#06B6D4',
+    'ป่วยที่ รพ.': '#F97316',
+    'ลาป่วยนอก รพ.': '#F59E0B',
     'ลากิจ': '#EF4444',
     'ลาพักผ่อน': '#10B981',
+    'ลาคลอด': '#EC4899',
+    'ลาช่วยภรรยาเลี้ยงดูบุตร': '#DB2777',
+    'ลาอุปสมบท': '#D97706',
+    'ประกอบพิธีทางศาสนาอิสลาม': '#B45309',
+    'โทษ': '#991B1B',
+    'ขาด': '#B91C1C',
+    'หนี': '#7F1D1D',
+    'ต้องโทษคดีอาญา': '#991B1B',
+    'เสียชีวิต': '#4B5563',
+    'สาบสูญ': '#6B7280',
+    'สรก.และพักราชการ': '#6B7280',
+    'ส่วนขึ้นสมทบ': '#14B8A6',
+    'เกษียณอายุราชการ': '#6B7280',
 };
 
 
@@ -132,8 +358,8 @@ export function populateRankDropdowns() {
         'นายทหารสัญญาบัตร (ชาย)': ['น.อ.(พ)', 'น.อ.หม่อมหลวง', 'น.อ.', 'น.ท.', 'น.ต.', 'ร.อ.', 'ร.ท.', 'ร.ต.'],
         'นายทหารสัญญาบัตร (หญิง)': ['น.อ.(พ).หญิง', 'น.อ.หญิง', 'น.ท.หญิง', 'น.ต.หญิง', 'ร.อ.หญิง', 'ร.ท.หญิง', 'ร.ต.หญิง'],
         'นายทหารประทวน (ชาย)': ['พ.อ.อ.(พ)', 'พ.อ.อ.', 'พ.อ.ท.', 'พ.อ.ต.', 'จ.อ.', 'จ.ท.', 'จ.ต.'],
-        'นายทหารประทวน (หญิง)': ['พ.อ.อ.หญิง', 'พ.อ.ท.หญิง', 'พ.อ.ต.หญิง', 'จ.อ.หญิง', 'จ.ท.หญิง', 'จ.ต.หญิง'],
-        'พลเรือน': ['นาย', 'นาง', 'นางสาว']
+        'นายทหารประทวน (หญิง)': ['พ.อ.อ.หญิง(พ)', 'พ.อ.อ.หญิง', 'พ.อ.ท.หญิง', 'พ.อ.ต.หญิง', 'จ.อ.หญิง', 'จ.ท.หญิง', 'จ.ต.หญิง'],
+        'ลูกจ้างประจำและพนักงานราชการ': ['นาย', 'นาง', 'นางสาว', 'ลูกจ้างประจำ', 'พนักงานราชการ']
     };
     const rankSelects = [document.getElementById('person-rank'), document.getElementById('user-rank')];
     rankSelects.forEach(select => {
@@ -151,6 +377,7 @@ export function populateRankDropdowns() {
             select.appendChild(optgroup);
         }
     });
+    updatePersonnelSpecialtyVisibility();
 }
 
 export function renderDashboard(res) {
@@ -167,6 +394,13 @@ export function renderDashboard(res) {
     
     if (weekRangeEl && summary.weekly_date_range) {
         weekRangeEl.textContent = `(${summary.weekly_date_range})`;
+    }
+
+
+    // Fix 21.1: ปุ่มรีเซ็ตรอบรายสัปดาห์ถูกย้ายไปหน้า "ส่งรายงานประจำสัปดาห์" แล้ว
+    const oldDashboardResetPanel = document.getElementById('weekly-reset-panel');
+    if (oldDashboardResetPanel && oldDashboardResetPanel.closest('#pane-dashboard')) {
+        oldDashboardResetPanel.remove();
     }
 
     if(statusSummaryArea) {
@@ -205,26 +439,33 @@ export function renderDashboard(res) {
 
 export function renderPersonnel(res) {
     if(!window.personnelListArea) return;
-    const { personnel, total, page } = res;
+    const { personnel, total, page, summary, available_departments } = res;
+    fillDepartmentFilter('personnel-department-filter', available_departments || []);
+    fillPrintDepartmentSelect(available_departments || []);
+    renderPersonnelSummary('personnel-summary-cards', summary || { total }, 'สรุปกำลังพล');
     window.personnelListArea.innerHTML = '';
-    
+
     if (!personnel || personnel.length === 0) {
-        const emptyRow = `<tr><td colspan="8">${createEmptyState('ไม่พบข้อมูลกำลังพลที่ตรงกับคำค้นหา')}</td></tr>`;
+        const emptyRow = `<tr><td colspan="9">${createEmptyState('ไม่พบข้อมูลกำลังพลที่ตรงกับเงื่อนไข')}</td></tr>`;
         window.personnelListArea.innerHTML = emptyRow;
-        document.getElementById('personnel-pagination').innerHTML = '';
+        const pagination = document.getElementById('personnel-pagination');
+        if (pagination) pagination.innerHTML = '';
         return;
     }
-    
+
     const startNumber = (page - 1) * ITEMS_PER_PAGE + 1;
     personnel.forEach((p, index) => {
         const row = document.createElement('tr');
+        const typeLabel = p.personnel_type_label || getPersonnelTypeLabel(p.rank);
+        const specialty = p.specialty_display || p.specialty || '-';
         row.innerHTML = `<td class="px-4 py-2">${startNumber + index}</td>
-                         <td class="px-4 py-2">${escapeHTML(p.rank)}</td>
-                         <td class="px-4 py-2">${escapeHTML(p.first_name)}</td>
-                         <td class="px-4 py-2">${escapeHTML(p.last_name)}</td>
+                         <td class="px-4 py-2 whitespace-nowrap">${escapeHTML(p.rank)}</td>
+                         <td class="px-4 py-2 ps-nowrap-name">${escapeHTML(p.first_name)}</td>
+                         <td class="px-4 py-2 ps-nowrap-name">${escapeHTML(p.last_name)}</td>
                          <td class="px-4 py-2">${escapeHTML(p.position)}</td>
-                         <td class="px-4 py-2">${escapeHTML(p.specialty)}</td>
-                         <td class="px-4 py-2">${escapeHTML(p.department)}</td>
+                         <td class="px-4 py-2 whitespace-nowrap">${escapeHTML(specialty)}</td>
+                         <td class="px-4 py-2 ps-nowrap-cell">${escapeHTML(p.department)}</td>
+                         <td class="px-4 py-2 whitespace-nowrap"><span class="inline-flex px-2 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-700">${escapeHTML(typeLabel)}</span></td>
                          <td class="px-4 py-2 whitespace-nowrap">
                             <button data-id='${escapeHTML(p.id)}' class="edit-person-btn text-blue-600 hover:text-blue-900 mr-2">แก้ไข</button>
                             <button data-id='${escapeHTML(p.id)}' class="delete-person-btn text-red-600 hover:text-red-900">ลบ</button>
@@ -236,6 +477,154 @@ export function renderPersonnel(res) {
         window.personnelCurrentPage = newPage;
         window.loadDataForPane('pane-personnel');
     });
+}
+
+export function renderMyDepartmentPersonnel(res) {
+    const listArea = document.getElementById('my-personnel-list-area');
+    if (!listArea) return;
+    const { personnel, total, page, summary } = res;
+    const deptLabel = document.getElementById('my-personnel-department-label');
+    const titleEl = document.getElementById('my-personnel-title');
+    if (window.currentUser) {
+        const departmentName = window.currentUser.department || '';
+        if (titleEl) titleEl.textContent = `ข้อมูลกำลังพลแผนก ${departmentName}`.trim();
+        if (deptLabel) deptLabel.textContent = departmentName ? `แผนก: ${departmentName}` : '';
+    }
+    renderPersonnelSummary('my-personnel-summary-cards', summary || { total });
+    listArea.innerHTML = '';
+
+    if (!personnel || personnel.length === 0) {
+        listArea.innerHTML = `<tr><td colspan="9">${createEmptyState('ไม่พบรายชื่อกำลังพลในแผนกของคุณ')}</td></tr>`;
+        const pagination = document.getElementById('my-personnel-pagination');
+        if (pagination) pagination.innerHTML = '';
+        return;
+    }
+
+    const startNumber = (page - 1) * ITEMS_PER_PAGE + 1;
+    personnel.forEach((p, index) => {
+        const typeLabel = p.personnel_type_label || getPersonnelTypeLabel(p.rank);
+        const specialty = p.specialty_display || p.specialty || '-';
+        const row = document.createElement('tr');
+        row.innerHTML = `<td class="px-4 py-2">${startNumber + index}</td>
+                         <td class="px-4 py-2 whitespace-nowrap">${escapeHTML(p.rank)}</td>
+                         <td class="px-4 py-2 ps-nowrap-name">${escapeHTML(p.first_name)}</td>
+                         <td class="px-4 py-2 ps-nowrap-name">${escapeHTML(p.last_name)}</td>
+                         <td class="px-4 py-2">${escapeHTML(p.position)}</td>
+                         <td class="px-4 py-2 whitespace-nowrap">${escapeHTML(specialty)}</td>
+                         <td class="px-4 py-2 whitespace-nowrap"><span class="inline-flex px-2 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-700">${escapeHTML(typeLabel)}</span></td>
+                         <td class="px-4 py-2 ps-nowrap-cell">${escapeHTML(p.department)}</td>
+                         <td class="px-4 py-2 whitespace-nowrap">
+                            <button data-id='${escapeHTML(p.id)}' class="edit-person-btn text-blue-600 hover:text-blue-900 mr-2">แก้ไข</button>
+                            <button data-id='${escapeHTML(p.id)}' data-name='${escapeHTML(`${p.rank} ${p.first_name} ${p.last_name}`)}' class="request-transfer-person-btn text-amber-600 hover:text-amber-800">แจ้งย้าย/พ้นจากแผนก</button>
+                         </td>`;
+        listArea.appendChild(row);
+    });
+
+    renderPagination('my-personnel-pagination', total, page, (newPage) => {
+        window.myPersonnelCurrentPage = newPage;
+        window.loadDataForPane('pane-my-personnel');
+    });
+}
+
+
+function formatDateTime(value) {
+    if (!value) return '-';
+    try { return new Date(value).toLocaleString('th-TH'); } catch (e) { return escapeHTML(value); }
+}
+
+function formatDateOnly(value) {
+    if (!value) return '-';
+    try { return formatThaiDateArabic(String(value).slice(0, 10)); } catch (e) { return escapeHTML(value); }
+}
+
+export function renderMyTransferRequests(res) {
+    const container = document.getElementById('my-transfer-requests-area');
+    if (!container) return;
+    const requests = res.requests || [];
+    if (!requests.length) {
+        container.innerHTML = createEmptyState('ยังไม่มีคำขอย้าย/พ้นจากแผนก');
+        return;
+    }
+    const rows = requests.map((r, index) => {
+        const fullName = `${r.rank || ''} ${r.first_name || ''} ${r.last_name || ''}`.trim() || '-';
+        const statusClass = r.status === 'pending' ? 'bg-amber-100 text-amber-800' : (r.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700');
+        return `<tr class="border-t text-sm">
+            <td class="px-3 py-2">${index + 1}</td>
+            <td class="px-3 py-2 ps-nowrap-name">${escapeHTML(fullName)}</td>
+            <td class="px-3 py-2">${escapeHTML(r.request_type_label || r.request_type || '-')}</td>
+            <td class="px-3 py-2">${formatDateOnly(r.effective_date)}</td>
+            <td class="px-3 py-2 ps-wrap-detail">${escapeHTML(r.reason || '-')}</td>
+            <td class="px-3 py-2"><span class="inline-flex px-2 py-1 rounded-full text-xs font-semibold ${statusClass}">${escapeHTML(r.status_label || r.status || '-')}</span></td>
+            <td class="px-3 py-2">${escapeHTML(r.admin_to_department || r.reject_reason || r.admin_note || '-')}</td>
+            <td class="px-3 py-2 ps-nowrap-cell">${formatDateTime(r.requested_at)}</td>
+        </tr>`;
+    }).join('');
+    container.innerHTML = `<table class="min-w-full bg-white text-sm">
+        <thead class="bg-amber-50"><tr>
+            <th class="px-3 py-2 text-left">#</th><th class="px-3 py-2 text-left ps-nowrap-cell">กำลังพล</th><th class="px-3 py-2 text-left">ประเภทคำขอ</th><th class="px-3 py-2 text-left">วันที่มีผล</th><th class="px-3 py-2 text-left">เหตุผล</th><th class="px-3 py-2 text-left">สถานะ</th><th class="px-3 py-2 text-left">ผลดำเนินการ</th><th class="px-3 py-2 text-left">ส่งคำขอเมื่อ</th>
+        </tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+export function renderTransferRequests(res) {
+    const container = document.getElementById('transfer-requests-area');
+    if (!container) return;
+    const requests = res.requests || [];
+    window.transferRequestDepartments = res.departments || [];
+    if (!requests.length) {
+        container.innerHTML = createEmptyState('ไม่พบคำขอย้าย/พ้นจากแผนก');
+        return;
+    }
+    const rows = requests.map((r, index) => {
+        const fullName = `${r.rank || ''} ${r.first_name || ''} ${r.last_name || ''}`.trim() || '-';
+        const pending = r.status === 'pending';
+        const statusClass = pending ? 'bg-amber-100 text-amber-800' : (r.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700');
+        const actions = pending ? `<div class="flex flex-wrap gap-2">
+            <button data-request-id="${escapeHTML(r.id)}" data-person-name="${escapeHTML(fullName)}" class="approve-internal-transfer-btn bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3 py-1 rounded">อนุมัติย้ายภายในกอง</button>
+            <button data-request-id="${escapeHTML(r.id)}" data-person-name="${escapeHTML(fullName)}" class="approve-out-transfer-btn bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-3 py-1 rounded">ย้ายออกจากกอง</button>
+            <button data-request-id="${escapeHTML(r.id)}" data-person-name="${escapeHTML(fullName)}" class="reject-transfer-btn bg-gray-500 hover:bg-gray-600 text-white text-xs font-bold px-3 py-1 rounded">ไม่อนุมัติ</button>
+        </div>` : `<span class="text-xs text-gray-500">ดำเนินการแล้ว</span>`;
+        return `<tr class="border-t align-top text-sm">
+            <td class="px-3 py-2">${index + 1}</td>
+            <td class="px-3 py-2 ps-nowrap-name">${escapeHTML(fullName)}</td>
+            <td class="px-3 py-2">${escapeHTML(r.from_department || '-')}</td>
+            <td class="px-3 py-2">${escapeHTML(r.request_type_label || '-')}</td>
+            <td class="px-3 py-2">${formatDateOnly(r.effective_date)}</td>
+            <td class="px-3 py-2 ps-wrap-detail">${escapeHTML(r.reason || '-')}</td>
+            <td class="px-3 py-2"><span class="inline-flex px-2 py-1 rounded-full text-xs font-semibold ${statusClass}">${escapeHTML(r.status_label || '-')}</span></td>
+            <td class="px-3 py-2">${actions}</td>
+        </tr>`;
+    }).join('');
+    container.innerHTML = `<table class="min-w-full bg-white text-sm">
+        <thead class="bg-gray-50"><tr>
+            <th class="px-3 py-2 text-left">#</th><th class="px-3 py-2 text-left ps-nowrap-cell">กำลังพล</th><th class="px-3 py-2 text-left">แผนกต้นทาง</th><th class="px-3 py-2 text-left">ประเภท</th><th class="px-3 py-2 text-left">วันที่มีผล</th><th class="px-3 py-2 text-left">เหตุผล</th><th class="px-3 py-2 text-left">สถานะ</th><th class="px-3 py-2 text-left">จัดการ</th>
+        </tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+export function renderPermanentPersonnel(res) {
+    const container = document.getElementById('permanent-personnel-area');
+    if (!container) return;
+    const records = res.records || [];
+    if (!records.length) {
+        container.innerHTML = createEmptyState('ไม่พบข้อมูลกำลังพลถาวร/พ้นจากหน่วย');
+        return;
+    }
+    const rows = records.map((r, index) => {
+        const fullName = `${r.rank || ''} ${r.first_name || ''} ${r.last_name || ''}`.trim() || '-';
+        return `<tr class="border-t text-sm">
+            <td class="px-3 py-2">${index + 1}</td>
+            <td class="px-3 py-2 ps-nowrap-name">${escapeHTML(fullName)}</td>
+            <td class="px-3 py-2">${escapeHTML(r.position || '-')}</td>
+            <td class="px-3 py-2">${escapeHTML(r.specialty || '-')}</td>
+            <td class="px-3 py-2">${escapeHTML(r.department || '-')}</td>
+            <td class="px-3 py-2">${formatDateOnly(r.exit_date)}</td>
+            <td class="px-3 py-2">${escapeHTML(r.exit_reason || '-')}</td>
+            <td class="px-3 py-2 ps-nowrap-cell">${formatDateTime(r.archived_at)}</td>
+        </tr>`;
+    }).join('');
+    container.innerHTML = `<table class="min-w-full bg-white text-sm">
+        <thead class="bg-gray-50"><tr>
+            <th class="px-3 py-2 text-left">#</th><th class="px-3 py-2 text-left ps-nowrap-cell">ยศ-ชื่อ-สกุล</th><th class="px-3 py-2 text-left">ตำแหน่งเดิม</th><th class="px-3 py-2 text-left">เหล่า</th><th class="px-3 py-2 text-left">แผนกเดิม</th><th class="px-3 py-2 text-left">วันที่พ้น</th><th class="px-3 py-2 text-left">เหตุผล</th><th class="px-3 py-2 text-left">เก็บข้อมูลเมื่อ</th>
+        </tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 export function renderUsers(res) {
@@ -255,12 +644,13 @@ export function renderUsers(res) {
         const roleText = u.role === 'admin' ? 'Admin' : 'User';
         const roleClass = u.role === 'admin' ? 'text-red-600 font-semibold' : 'text-gray-600';
         row.innerHTML = `<td class="px-4 py-2 font-mono">${escapeHTML(u.username)}</td>
-                         <td class="px-4 py-2">${escapeHTML(u.rank)} ${escapeHTML(u.first_name)} ${escapeHTML(u.last_name)}</td>
+                         <td class="px-4 py-2 ps-nowrap-name">${escapeHTML(u.rank)} ${escapeHTML(u.first_name)} ${escapeHTML(u.last_name)}</td>
                          <td class="px-4 py-2">${escapeHTML(u.position)}</td>
-                         <td class="px-4 py-2">${escapeHTML(u.department)}</td>
+                         <td class="px-4 py-2 ps-nowrap-cell">${escapeHTML(u.department)}</td>
                          <td class="px-4 py-2 ${roleClass}">${escapeHTML(roleText)}</td>
                          <td class="px-4 py-2 whitespace-nowrap">
                             <button data-username='${escapeHTML(u.username)}' class="edit-user-btn text-blue-600 hover:text-blue-900 mr-2">แก้ไข</button>
+                            <button data-username='${escapeHTML(u.username)}' class="reset-password-user-btn text-amber-600 hover:text-amber-800 mr-2">รีเซ็ตรหัส</button>
                             <button data-username='${escapeHTML(u.username)}' class="delete-user-btn text-red-600 hover:text-red-900">ลบ</button>
                          </td>`;
         window.userListArea.appendChild(row);
@@ -272,8 +662,61 @@ export function renderUsers(res) {
     });
 }
 
+
+function renderWeeklyReportToolbar(res) {
+    const reportPane = document.getElementById('pane-report');
+    if (!reportPane) return;
+
+    // เอา panel รีเซ็ตแบบเก่าออก เพื่อให้หน้ารายสัปดาห์จัดปุ่มเหมือนรายวัน
+    const oldResetPanel = document.getElementById('weekly-reset-panel');
+    if (oldResetPanel) oldResetPanel.remove();
+
+    let reportContainer = document.getElementById('report-container');
+    if (!reportContainer) {
+        reportContainer = document.createElement('div');
+        reportContainer.id = 'report-container';
+        reportPane.appendChild(reportContainer);
+        window.reportContainer = reportContainer;
+    }
+
+    // ลบ header แบบเก่าที่มากับ HTML เดิม ถ้ายังไม่มี toolbar ใหม่
+    let toolbar = document.getElementById('weekly-report-toolbar');
+    if (!toolbar) {
+        const oldRangeEl = document.getElementById('report-week-range');
+        const oldHeader = oldRangeEl ? oldRangeEl.closest('div') : null;
+        if (oldHeader && oldHeader.parentElement === reportPane) oldHeader.remove();
+
+        toolbar = document.createElement('div');
+        toolbar.id = 'weekly-report-toolbar';
+        reportPane.insertBefore(toolbar, reportContainer);
+    }
+
+    const isAdmin = window.currentUser && window.currentUser.role === 'admin';
+    const weekRangeText = res.weekly_date_range || '-';
+    const startDateValue = res.current_week_start_date || '';
+
+    toolbar.className = 'flex flex-wrap justify-between items-center gap-3 mb-6';
+    toolbar.innerHTML = `
+        <h2 class="text-xl font-semibold">
+            ส่งรายงานประจำสัปดาห์
+            <span id="report-week-range" class="text-lg text-gray-500 font-normal">(${escapeHTML(weekRangeText)})</span>
+        </h2>
+        <div class="flex flex-wrap gap-2">
+            ${isAdmin ? `<button id="auto-submit-all-weekly-btn" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg">ส่งยอดทุกแผนกอัตโนมัติ</button>` : ''}
+            ${isAdmin ? `<button id="weekly-reset-round-btn" data-default-date="${escapeHTML(startDateValue)}" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg">รีเซ็ตรอบรายสัปดาห์</button>` : ''}
+            <button id="export-weekly-current-excel-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg">ส่งออก Excel</button>
+            <button id="export-archive-btn" class="bg-gray-400 cursor-not-allowed text-white font-bold py-2 px-4 rounded-lg" disabled>ส่งออกและเก็บรายงาน</button>
+        </div>
+    `;
+}
+
+function removeWeeklyResetPanelFromWrongPane() {
+    const resetPanel = document.getElementById('weekly-reset-panel');
+    if (resetPanel) resetPanel.remove();
+}
+
 export function renderStatusSubmissionForm(res) {
-    const { personnel, submission_status, weekly_date_range, persistent_statuses = [], all_departments = [] } = res;
+    const { personnel, submission_status, weekly_date_range, persistent_statuses = [], all_departments = [], admin_submission_statuses = {} } = res;
 
     const selectorContainer = document.getElementById('admin-dept-selector-container');
     const bulkButtonContainer = document.getElementById('bulk-status-buttons');
@@ -282,18 +725,69 @@ export function renderStatusSubmissionForm(res) {
 
     if (!selectorContainer || !bulkButtonContainer || !window.statusSubmissionListArea || !window.submitStatusTitle || !submissionInfoArea || !submissionForm) return;
 
+    removeWeeklyResetPanelFromWrongPane();
+
     if (window.currentUser.role !== 'admin' && submission_status && !window.editingReportData) {
         const submittedTime = new Date(submission_status.timestamp).toLocaleString('th-TH');
-        submissionInfoArea.innerHTML = `คุณได้ส่งยอดสำหรับรอบนี้ไปแล้วเมื่อ ${submittedTime} น.`;
-        submissionInfoArea.classList.remove('hidden');
+        const submittedItems = Array.isArray(submission_status.items) ? submission_status.items : [];
+        const itemsHtml = submittedItems.length > 0
+            ? submittedItems.map((item, index) => `
+                <tr class="border-t">
+                    <td class="py-2 px-2 text-center">${index + 1}</td>
+                    <td class="py-2 px-2 font-semibold ps-nowrap-name">${escapeHTML(item.personnel_name || '')}</td>
+                    <td class="py-2 px-2 text-blue-700">${escapeHTML(item.status || '-')}</td>
+                    <td class="py-2 px-2 ps-wrap-detail">${escapeHTML(item.details || '-')}</td>
+                    <td class="py-2 px-2">${formatThaiDateRangeArabic(item.start_date, item.end_date)}</td>
+                </tr>
+            `).join('')
+            : `<tr><td colspan="5" class="py-3 px-2 text-center text-gray-500">ส่งรายงานแล้ว: กำลังพลมาปฏิบัติงานครบถ้วน / ไม่มีผู้ติดภารกิจ</td></tr>`;
+
+        const editButtonHtml = submission_status.id
+            ? `<button type="button" data-id="${escapeHTML(submission_status.id)}" class="edit-weekly-report-btn bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded-lg whitespace-nowrap">แก้ไขรายงานที่ส่งแล้ว</button>`
+            : '';
+        const syncInfo = submission_status.sync_status || {};
+        const syncWarningHtml = (submission_status.id && syncInfo.has_updates)
+            ? `<div class="mb-3 rounded-lg border border-orange-300 bg-orange-50 p-3 text-orange-900">
+                   <div class="font-semibold text-sm">พบข้อมูลภารกิจล่าสุดที่เปลี่ยนแปลง (${Number(syncInfo.diff_count || 0)} รายการ)</div>
+                   <div class="text-xs mt-1">รายงานนี้เคยส่งแล้ว ระบบจึงไม่เขียนทับอัตโนมัติ ให้กดปุ่มด้านล่างเพื่ออัปเดตจากข้อมูลล่าสุด</div>
+                   <button type="button" data-id="${escapeHTML(submission_status.id)}" class="apply-weekly-latest-sync-btn mt-2 bg-orange-500 hover:bg-orange-600 text-white font-bold py-1 px-3 rounded-lg text-sm">อัปเดตจากข้อมูลล่าสุด</button>
+               </div>`
+            : '';
+
+        submissionInfoArea.className = 'mb-4 rounded-lg border border-green-200 bg-green-50 p-4 text-green-900';
+        submissionInfoArea.innerHTML = `
+            <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-3">
+                <div>
+                    <div class="font-bold text-lg">คุณส่งรายงานประจำสัปดาห์แล้ว</div>
+                    <div class="text-sm mt-1">ส่งเมื่อ: ${escapeHTML(submittedTime)} น.</div>
+                    <div class="text-xs text-green-700 mt-1">หากต้องการเปลี่ยนข้อมูล ให้กดปุ่มแก้ไขรายงานที่ส่งแล้ว ก่อน Admin กดเก็บรายงาน</div>
+                </div>
+                ${editButtonHtml}
+            </div>
+            ${syncWarningHtml}
+            <div class="overflow-x-auto bg-white rounded border border-green-100">
+                <table class="min-w-full text-sm">
+                    <thead class="bg-green-100 text-green-900">
+                        <tr>
+                            <th class="py-2 px-2 text-center w-[6%]">ลำดับ</th>
+                            <th class="py-2 px-2 text-left ps-nowrap-cell">ยศ-ชื่อ-สกุล</th>
+                            <th class="py-2 px-2 text-left w-[15%]">สถานะ</th>
+                            <th class="py-2 px-2 text-left w-[30%]">รายละเอียด</th>
+                            <th class="py-2 px-2 text-left w-[20%]">ช่วงวันที่</th>
+                        </tr>
+                    </thead>
+                    <tbody>${itemsHtml}</tbody>
+                </table>
+            </div>
+        `;
         submissionForm.classList.add('hidden');
         bulkButtonContainer.classList.add('hidden');
         selectorContainer.classList.add('hidden');
-        window.submitStatusTitle.textContent = `สถานะการส่งยอด`;
+        window.submitStatusTitle.textContent = `สถานะการส่งยอดประจำสัปดาห์`;
         return;
     }
     
-    submissionInfoArea.classList.add('hidden');
+    submissionInfoArea.className = 'hidden text-center p-4 mb-4 bg-green-100 text-green-800 rounded-lg';
     submissionForm.classList.remove('hidden');
     bulkButtonContainer.classList.remove('hidden');
     selectorContainer.classList.remove('hidden');
@@ -374,7 +868,7 @@ export function renderStatusSubmissionForm(res) {
                 if (statusIndex === 0) {
                     row.innerHTML = `
                         <td class="px-4 py-2">${index + 1}</td>
-                        <td class="px-4 py-2 font-semibold">${personnelName}</td>
+                        <td class="px-4 py-2 font-semibold ps-nowrap-name">${personnelName}</td>
                         <td class="px-4 py-2">
                             <select class="status-select w-full border rounded px-2 py-1 bg-white"></select>
                         </td>
@@ -405,14 +899,9 @@ export function renderStatusSubmissionForm(res) {
 
                 const statusSelect = row.querySelector('.status-select');
                 statusSelect.innerHTML = `
-                    <option value="ไม่มี">ไม่มี</option>
-                    <option value="ราชการ">ราชการ</option>
-                    <option value="คุมงาน">คุมงาน</option>
-                    <option value="ศึกษา">ศึกษา</option>
-                    <option value="ลากิจ">ลากิจ</option>
-                    <option value="ลาพักผ่อน">ลาพักผ่อน</option>
+                    ${buildTaf025StatusOptionsHtml({ includeNone: true, isAdmin: window.currentUser && window.currentUser.role === 'admin' })}
                 `;
-                statusSelect.value = statusData.status || 'ไม่มี';
+                statusSelect.value = (statusData.status && statusData.status !== 'ไม่มี') ? normalizeTaf025Status(statusData.status) : 'ไม่มี';
                 row.querySelector('.details-input').value = statusData.details || '';
                 
                 statusSelect.addEventListener('change', () => updateRowHighlight(statusSelect));
@@ -437,33 +926,113 @@ export function renderStatusSubmissionForm(res) {
 
     if (window.currentUser.role === 'admin') {
         selectorContainer.innerHTML = '';
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'space-y-3';
+
         const label = document.createElement('label');
         label.htmlFor = 'admin-dept-selector';
         label.className = 'block text-sm font-medium text-gray-700 mb-1';
         label.textContent = 'เลือกแผนกเพื่อส่งยอด';
+
         const selector = document.createElement('select');
         selector.id = 'admin-dept-selector';
         selector.className = 'w-full md:w-1/3 border rounded px-2 py-2 bg-white shadow-sm';
-        
+
+        const adminWeeklyStatusArea = document.createElement('div');
+        adminWeeklyStatusArea.id = 'admin-weekly-submission-status-area';
+
         let currentDept = window.editingReportData ? window.editingReportData.department : (all_departments.length > 0 ? all_departments[0] : '');
 
         all_departments.forEach(dept => {
             const option = document.createElement('option');
             option.value = dept;
             option.textContent = dept;
+            if (admin_submission_statuses[dept]) {
+                option.textContent = `${dept} — ส่งแล้ว`;
+            }
             if (dept === currentDept) {
                 option.selected = true;
             }
             selector.appendChild(option);
         });
-        selectorContainer.appendChild(label);
-        selectorContainer.appendChild(selector);
-        
-        displayPersonnelForDept(currentDept);
+
+        wrapper.appendChild(label);
+        wrapper.appendChild(selector);
+        wrapper.appendChild(adminWeeklyStatusArea);
+        selectorContainer.appendChild(wrapper);
+
+        const renderAdminDepartmentState = (dept) => {
+            const submission = admin_submission_statuses[dept];
+            const isEditingSelectedDepartment = Boolean(window.editingReportData && window.editingReportData.department === dept);
+
+            window.submitStatusTitle.innerHTML = `ส่งยอดกำลังพล แผนก ${escapeHTML(dept)}`;
+            if (weekly_date_range) {
+                const weekRangeEl = document.createElement('span');
+                weekRangeEl.className = 'text-lg text-gray-500 font-normal ml-2';
+                weekRangeEl.textContent = `(${weekly_date_range})`;
+                window.submitStatusTitle.appendChild(weekRangeEl);
+            }
+
+            if (submission && !isEditingSelectedDepartment) {
+                const submittedTime = submission.timestamp ? new Date(submission.timestamp).toLocaleString('th-TH') : '-';
+                const submittedBy = submission.submitted_name || submission.submitted_by || '-';
+                const syncInfo = submission.sync_status || {};
+                const syncWarningHtml = (submission.id && syncInfo.has_updates)
+                    ? `<div class="mt-3 rounded-lg border border-orange-300 bg-orange-50 p-3 text-orange-900">
+                           <div class="font-semibold text-sm">พบข้อมูลภารกิจล่าสุดที่เปลี่ยนแปลง (${Number(syncInfo.diff_count || 0)} รายการ)</div>
+                           <div class="text-xs mt-1">รายงานนี้เคยส่งแล้ว ระบบจึงไม่เขียนทับอัตโนมัติ ให้กดปุ่มด้านล่างเพื่ออัปเดตจากข้อมูลล่าสุด</div>
+                           <button type="button" data-id="${escapeHTML(submission.id)}" class="apply-weekly-latest-sync-btn mt-2 bg-orange-500 hover:bg-orange-600 text-white font-bold py-1 px-3 rounded-lg text-sm">อัปเดตจากข้อมูลล่าสุด</button>
+                       </div>`
+                    : '';
+
+                adminWeeklyStatusArea.innerHTML = `
+                    <div class="rounded-lg border border-green-200 bg-green-50 p-4 text-green-900">
+                        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                            <div>
+                                <div class="font-bold text-lg">แผนกนี้ส่งรายงานแล้ว</div>
+                                <div class="text-sm mt-1">ผู้ส่ง: ${escapeHTML(submittedBy)} | เวลา: ${escapeHTML(submittedTime)}</div>
+                                <div class="text-xs text-green-700 mt-1">หากต้องการเปลี่ยนข้อมูล ให้กดปุ่มแก้ไขรายงานที่ส่งแล้ว</div>
+                                ${syncWarningHtml}
+                            </div>
+                            <button type="button" data-id="${escapeHTML(submission.id)}" class="edit-weekly-report-btn bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded-lg">
+                                แก้ไขรายงานที่ส่งแล้ว
+                            </button>
+                        </div>
+                    </div>
+                `;
+                submissionForm.classList.add('hidden');
+                bulkButtonContainer.classList.add('hidden');
+                window.statusSubmissionListArea.innerHTML = '';
+                return;
+            }
+
+            if (submission && isEditingSelectedDepartment) {
+                adminWeeklyStatusArea.innerHTML = `
+                    <div class="rounded-lg border border-yellow-200 bg-yellow-50 p-3 text-yellow-900">
+                        <span class="font-semibold">กำลังแก้ไขรายงานที่ส่งแล้วของแผนกนี้</span>
+                        <span class="text-sm">แก้ไขข้อมูลให้ถูกต้อง แล้วกดตรวจสอบก่อนส่งเพื่อบันทึกทับรายงานเดิม</span>
+                    </div>
+                `;
+            } else {
+                adminWeeklyStatusArea.innerHTML = `
+                    <div class="rounded-lg border border-gray-200 bg-gray-50 p-3 text-gray-700">
+                        <span class="font-semibold">แผนกนี้ยังไม่ส่งรายงาน</span>
+                        <span class="text-sm">Admin สามารถส่งยอดแทนแผนกนี้ได้จากแบบฟอร์มด้านล่าง</span>
+                    </div>
+                `;
+            }
+
+            submissionForm.classList.remove('hidden');
+            bulkButtonContainer.classList.remove('hidden');
+            displayPersonnelForDept(dept);
+        };
+
+        renderAdminDepartmentState(currentDept);
         if (window.editingReportData) delete window.editingReportData;
 
         selector.addEventListener('change', (e) => {
-            displayPersonnelForDept(e.target.value);
+            renderAdminDepartmentState(e.target.value);
         });
     } else {
         selectorContainer.innerHTML = '';
@@ -484,12 +1053,7 @@ export function addStatusRow(clickedButton) {
         <td class="px-4 py-2 text-right text-gray-500 pr-4">↳</td>
         <td class="px-4 py-2">
             <select class="status-select w-full border rounded px-2 py-1 bg-white">
-                <option value="ไม่มี">ไม่มี</option>
-                <option value="ราชการ">ราชการ</option>
-                <option value="คุมงาน">คุมงาน</option>
-                <option value="ศึกษา">ศึกษา</option>
-                <option value="ลากิจ">ลากิจ</option>
-                <option value="ลาพักผ่อน">ลาพักผ่อน</option>
+                ${buildTaf025StatusOptionsHtml({ includeNone: true, isAdmin: window.currentUser && window.currentUser.role === 'admin' })}
             </select>
         </td>
         <td class="px-4 py-2"><input type="text" class="details-input w-full border rounded px-2 py-1" placeholder="รายละเอียด/สถานที่..."></td>
@@ -526,6 +1090,8 @@ export function renderWeeklyReport(res) {
     } else if (weekRangeEl) {
         weekRangeEl.textContent = '';
     }
+
+    renderWeeklyReportToolbar(res);
 
     const exportArchiveBtn = document.getElementById('export-archive-btn');
     if (exportArchiveBtn) {
@@ -755,22 +1321,64 @@ export function renderArchivedReports(reports) {
     });
 }
 
-export function openPersonnelModal(person = null) {
+export function openPersonnelModal(person = null, context = 'admin') {
     window.personnelForm.reset();
+    window.personnelForm.dataset.context = context || 'admin';
     const title = window.personnelForm.querySelector('#personnel-modal-title');
+    const departmentSelect = window.personnelForm.querySelector('#person-department');
+    const departmentWrapper = document.getElementById('person-department-wrapper');
+    const isMyDepartmentContext = context === 'my' || (window.currentUser && window.currentUser.role !== 'admin');
+    const myDepartment = (window.currentUser && window.currentUser.department) ? window.currentUser.department : '';
+
+    const ensureDepartmentOption = (departmentName) => {
+        if (!departmentSelect || !departmentName) return;
+        const exists = Array.from(departmentSelect.options).some(opt => opt.value === departmentName);
+        if (!exists) {
+            const option = document.createElement('option');
+            option.value = departmentName;
+            option.textContent = departmentName;
+            departmentSelect.appendChild(option);
+        }
+    };
+    ensureDepartmentOption(isMyDepartmentContext ? myDepartment : (person ? person.department : ''));
+
     if (person) {
-        title.textContent = 'แก้ไขข้อมูลกำลังพล';
+        title.textContent = isMyDepartmentContext ? `แก้ไขข้อมูลกำลังพลแผนก ${myDepartment}`.trim() : 'แก้ไขข้อมูลกำลังพล';
         window.personnelForm.querySelector('#person-id').value = person.id;
         window.personnelForm.querySelector('#person-rank').value = person.rank;
         window.personnelForm.querySelector('#person-first-name').value = person.first_name;
         window.personnelForm.querySelector('#person-last-name').value = person.last_name;
         window.personnelForm.querySelector('#person-position').value = person.position;
-        window.personnelForm.querySelector('#person-specialty').value = person.specialty;
-        window.personnelForm.querySelector('#person-department').value = person.department;
+        window.personnelForm.querySelector('#person-specialty').value = canonicalSpecialtyValue(person.specialty || '');
+        departmentSelect.value = isMyDepartmentContext ? myDepartment : person.department;
     } else {
-        title.textContent = 'เพิ่มข้อมูลกำลังพล';
+        title.textContent = isMyDepartmentContext ? `เพิ่มกำลังพลแผนก ${myDepartment}`.trim() : 'เพิ่มข้อมูลกำลังพล';
         window.personnelForm.querySelector('#person-id').value = '';
+        if (isMyDepartmentContext) departmentSelect.value = myDepartment;
     }
+
+    if (departmentSelect) {
+        departmentSelect.disabled = isMyDepartmentContext;
+        departmentSelect.classList.toggle('bg-gray-100', isMyDepartmentContext);
+        departmentSelect.classList.toggle('cursor-not-allowed', isMyDepartmentContext);
+    }
+    if (departmentWrapper) {
+        const noteId = 'person-department-lock-note';
+        let note = document.getElementById(noteId);
+        if (isMyDepartmentContext) {
+            if (!note) {
+                note = document.createElement('p');
+                note.id = noteId;
+                note.className = 'text-xs text-amber-700 mt-1';
+                departmentWrapper.appendChild(note);
+            }
+            note.textContent = 'ระบบล็อกแผนกตามบัญชีผู้ใช้งาน ไม่สามารถเลือกแผนกอื่นได้';
+        } else if (note) {
+            note.remove();
+        }
+    }
+
+    updatePersonnelSpecialtyVisibility();
     window.personnelModal.classList.add('active');
 }
 
@@ -950,11 +1558,11 @@ function updateActiveStatusesView(filter) {
                 const fullName = `${escapeHTML(s.rank)} ${escapeHTML(s.first_name)} ${escapeHTML(s.last_name)}`;
                 const bgColorClass = STATUS_COLORS[s.status] || '';
                 tableHTML += `<tr class="${bgColorClass}">
-                    <td class="px-4 py-2">${index + 1}</td>
-                    <td class="px-4 py-2">${fullName}</td>
+                    <td class="px-4 py-2 ps-nowrap-cell">${index + 1}</td>
+                    <td class="px-4 py-2 ps-nowrap-name">${fullName}</td>
                     ${is_admin ? `<td class="px-4 py-2">${escapeHTML(s.department)}</td>` : ''}
                     <td class="px-4 py-2">${escapeHTML(s.status)}</td>
-                    <td class="px-4 py-2">${escapeHTML(s.details)}</td>
+                    <td class="px-4 py-2 ps-wrap-detail">${escapeHTML(s.details)}</td>
                     <td class="px-4 py-2">${formatThaiDateRangeArabic(s.start_date, s.end_date)}</td>
                 </tr>`;
             });
@@ -976,9 +1584,9 @@ function updateActiveStatusesView(filter) {
             filteredAvailable.forEach((p, index) => {
                 const fullName = `${escapeHTML(p.rank)} ${escapeHTML(p.first_name)} ${escapeHTML(p.last_name)}`;
                 tableHTML += `<tr class="bg-green-50/50">
-                    <td class="px-4 py-2">${index + 1}</td>
-                    <td class="px-4 py-2">${fullName}</td>
-                    ${is_admin ? `<td class="px-4 py-2">${escapeHTML(p.department)}</td>` : ''}
+                    <td class="px-4 py-2 ps-nowrap-cell">${index + 1}</td>
+                    <td class="px-4 py-2 ps-nowrap-name">${fullName}</td>
+                    ${is_admin ? `<td class="px-4 py-2 ps-nowrap-cell">${escapeHTML(p.department)}</td>` : ''}
                 </tr>`;
             });
             tableHTML += `</tbody></table>`;

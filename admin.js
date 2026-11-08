@@ -50,6 +50,7 @@ function assignDomElements() {
     window.cancelPersonnelBtn = document.getElementById('cancel-personnel-btn');
     window.importExcelBtn = document.getElementById('import-excel-btn');
     window.excelImportInput = document.getElementById('excel-import-input');
+    window.samplePersonnelImportBtn = document.getElementById('sample-personnel-import-btn');
     window.userListArea = document.getElementById('user-list-area');
     window.addUserBtn = document.getElementById('add-user-btn');
     window.userModal = document.getElementById('user-modal');
@@ -113,6 +114,7 @@ function initializePage() {
     if(userForm) userForm.addEventListener('submit', handlers.handleUserFormSubmit);
     if(userListArea) userListArea.addEventListener('click', handlers.handleUserListClick);
     
+    if(samplePersonnelImportBtn) samplePersonnelImportBtn.addEventListener('click', handlers.handleDownloadPersonnelImportTemplate);
     if(importExcelBtn) importExcelBtn.addEventListener('click', () => excelImportInput.click());
     if(excelImportInput) excelImportInput.addEventListener('change', handlers.handleExcelImport);
 

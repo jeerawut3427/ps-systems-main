@@ -28,6 +28,134 @@ export function escapeHTML(str) {
         .replace(/'/g, '&#039;');
 }
 
+
+// --- Fix 43: Master status list based on ทอ.กพ.025 ---
+export const TAF025_STATUS_GROUPS = [
+    {
+        label: 'ปกติ / อยู่ปฏิบัติงาน',
+        options: [
+            { value: 'ปฏิบัติงานในหน่วย', label: 'ปฏิบัติงานในหน่วย', adminOnly: true },
+        ]
+    },
+    {
+        label: 'ราชการ / ภารกิจ / ศึกษา',
+        options: [
+            { value: 'ราชการ', label: 'ราชการ' },
+            { value: 'คุมงาน', label: 'คุมงาน' },
+            { value: 'ศึกษา', label: 'ศึกษา' },
+            { value: 'อบรม/ฝึก', label: 'อบรม/ฝึก' },
+            { value: 'ช่วยราชการ', label: 'ช่วยราชการ' },
+        ]
+    },
+    {
+        label: 'ลา / ป่วย',
+        options: [
+            { value: 'ป่วยที่ รพ.', label: 'ป่วยที่ รพ.' },
+            { value: 'ลาป่วยนอก รพ.', label: 'ลาป่วยนอก รพ.' },
+            { value: 'ลากิจ', label: 'ลากิจ' },
+            { value: 'ลาพักผ่อน', label: 'ลาพักผ่อน' },
+            { value: 'ลาพักเกษียณอายุราชการ', label: 'ลาพักเกษียณอายุราชการ' },
+            { value: 'ลาคลอด', label: 'ลาคลอด' },
+            { value: 'ลาช่วยภรรยาเลี้ยงดูบุตร', label: 'ลาช่วยภรรยาเลี้ยงดูบุตร' },
+            { value: 'ลาอุปสมบท', label: 'ลาอุปสมบท' },
+            { value: 'ประกอบพิธีทางศาสนาอิสลาม', label: 'ประกอบพิธีทางศาสนาอิสลาม' },
+        ]
+    },
+    {
+        label: 'สถานะพิเศษ / จำหน่ายยอด',
+        options: [
+            { value: 'โทษ', label: 'โทษ', adminOnly: true },
+            { value: 'ขาด', label: 'ขาด', adminOnly: true },
+            { value: 'หนี', label: 'หนี', adminOnly: true },
+            { value: 'ต้องโทษคดีอาญา', label: 'ต้องโทษคดีอาญา', adminOnly: true },
+            { value: 'เสียชีวิต', label: 'เสียชีวิต', adminOnly: true },
+            { value: 'สาบสูญ', label: 'สาบสูญ', adminOnly: true },
+            { value: 'สรก.และพักราชการ', label: 'สรก.และพักราชการ', adminOnly: true },
+            { value: 'เกษียณอายุราชการ', label: 'เกษียณอายุราชการ', adminOnly: true },
+        ]
+    },
+    {
+        label: 'ส่วนขึ้นสมทบ',
+        options: [
+            { value: 'ส่วนขึ้นสมทบ', label: 'ส่วนขึ้นสมทบ', adminOnly: true },
+        ]
+    },
+];
+
+export const TAF025_STATUS_COLUMNS = [
+    'ปฏิบัติงานในหน่วย',
+    'ราชการ',
+    'คุมงาน',
+    'ศึกษา',
+    'อบรม/ฝึก',
+    'ช่วยราชการ',
+    'ป่วยที่ รพ.',
+    'ลาป่วยนอก รพ.',
+    'ลากิจ',
+    'ลาพักผ่อน',
+    'ลาพักเกษียณอายุราชการ',
+    'ลาคลอด',
+    'ลาช่วยภรรยาเลี้ยงดูบุตร',
+    'ลาอุปสมบท',
+    'ประกอบพิธีทางศาสนาอิสลาม',
+    'โทษ',
+    'ขาด',
+    'หนี',
+    'ต้องโทษคดีอาญา',
+    'เสียชีวิต',
+    'สาบสูญ',
+    'สรก.และพักราชการ',
+    'ส่วนขึ้นสมทบ',
+    'เกษียณอายุราชการ',
+];
+
+export function normalizeTaf025Status(status) {
+    const raw = (status || '').toString().trim();
+    const compact = raw.replace(/\s+/g, '');
+    if (!compact || ['ไม่มี', 'ปกติ', 'ว่าง', 'ปฏิบัติงานปกติ'].includes(compact)) return 'ปฏิบัติงานในหน่วย';
+    if (compact.includes('ปฏิบัติงานในหน่วย')) return 'ปฏิบัติงานในหน่วย';
+    if (compact.includes('ลาพักเกษียณ') || compact.includes('พักเกษียณ')) return 'ลาพักเกษียณอายุราชการ';
+    if (compact.includes('เกษียณ')) return 'เกษียณอายุราชการ';
+    if (compact.includes('ส่วนขึ้นสมทบ')) return 'ส่วนขึ้นสมทบ';
+    if (compact.includes('สรก') || compact.includes('พักราชการ')) return 'สรก.และพักราชการ';
+    if (compact.includes('ต้องโทษ')) return 'ต้องโทษคดีอาญา';
+    if (compact.includes('เสียชีวิต')) return 'เสียชีวิต';
+    if (compact.includes('สาบสูญ')) return 'สาบสูญ';
+    if (compact === 'โทษ' || compact.includes('ถูกโทษ')) return 'โทษ';
+    if (compact.includes('ขาด')) return 'ขาด';
+    if (compact.includes('หนี')) return 'หนี';
+    if (compact.includes('ช่วยราชการ')) return 'ช่วยราชการ';
+    if (compact.includes('คุมงาน') || compact.includes('ควบคุมงาน')) return 'คุมงาน';
+    if (compact.includes('ราชการ')) return 'ราชการ';
+    if (compact.includes('ศึกษา')) return 'ศึกษา';
+    if (compact.includes('อบรม') || compact.includes('ฝึก') || compact.includes('สัมมนา')) return 'อบรม/ฝึก';
+    if (compact.includes('ป่วยที่รพ') || compact.includes('ป่วยที่โรงพยาบาล')) return 'ป่วยที่ รพ.';
+    if (compact.includes('ลาป่วย') || compact === 'ป่วย') return 'ลาป่วยนอก รพ.';
+    if (compact.includes('ลากิจ')) return 'ลากิจ';
+    if (compact.includes('ลาพักผ่อน') || compact === 'พักผ่อน') return 'ลาพักผ่อน';
+    if (compact.includes('ลาคลอด')) return 'ลาคลอด';
+    if (compact.includes('ช่วยภรรยา')) return 'ลาช่วยภรรยาเลี้ยงดูบุตร';
+    if (compact.includes('อุปสมบท')) return 'ลาอุปสมบท';
+    if (compact.includes('อิสลาม')) return 'ประกอบพิธีทางศาสนาอิสลาม';
+    return raw;
+}
+
+export function buildTaf025StatusOptionsHtml({ includeNone = true, isAdmin = false, selected = '' } = {}) {
+    const current = normalizeTaf025Status(selected || '');
+    let html = includeNone ? '<option value="ไม่มี">ปฏิบัติงานในหน่วย / ไม่มีภารกิจ</option>' : '<option value="">ทั้งหมด</option>';
+    for (const group of TAF025_STATUS_GROUPS) {
+        const options = group.options.filter(opt => (isAdmin || !opt.adminOnly) && !(includeNone && opt.value === 'ปฏิบัติงานในหน่วย'));
+        if (!options.length) continue;
+        html += `<optgroup label="${escapeHTML(group.label)}">`;
+        for (const opt of options) {
+            const selectedAttr = current === opt.value ? ' selected' : '';
+            html += `<option value="${escapeHTML(opt.value)}"${selectedAttr}>${escapeHTML(opt.label)}</option>`;
+        }
+        html += '</optgroup>';
+    }
+    return html;
+}
+
 // --- Arabic Numeral Formatters (for UI Display) ---
 
 export function formatThaiDateArabic(isoDate) {
@@ -127,7 +255,7 @@ export function exportSingleReportToExcel(reports, fileName, weekRangeText) {
         'น.อ.(พ)', 'น.อ.(พ).หญิง', 'น.อ.หม่อมหลวง', 'น.อ.', 'น.อ.หญิง',
         'น.ท.', 'น.ท.หญิง', 'น.ต.', 'น.ต.หญิง',
         'ร.อ.', 'ร.อ.หญิง', 'ร.ท.', 'ร.ท.หญิง', 'ร.ต.', 'ร.ต.หญิง',
-        'พ.อ.อ.(พ)', 'พ.อ.อ.', 'พ.อ.อ.หญิง', 'พ.อ.ท.', 'พ.อ.ท.หญิง',
+        'พ.อ.อ.(พ)', 'พ.อ.อ.หญิง(พ)', 'พ.อ.อ.', 'พ.อ.อ.หญิง', 'พ.อ.ท.', 'พ.อ.ท.หญิง',
         'พ.อ.ต.', 'พ.อ.ต.หญิง', 'จ.อ.', 'จ.อ.หญิง', 'จ.ท.', 'จ.ท.หญิง',
         'จ.ต.', 'จ.ต.หญิง', 'นาย', 'นาง', 'นางสาว'
     ];

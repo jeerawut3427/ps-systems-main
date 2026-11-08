@@ -24,18 +24,24 @@
     </style>
 </head>
 <body class="flex items-center justify-center min-h-screen p-4 font-kanit">
-    <div class="w-full max-w-md">
+    <div class="w-full max-w-lg">
         <div class="bg-white/10 backdrop-blur-lg p-8 rounded-2xl shadow-2xl border border-white/20 text-center">
             <h1 class="text-2xl font-bold mb-2 text-white">ระบบส่งยอดกำลังพล กองวิทยาการ</h1>
 	        <h2 class="text-md mb-8 text-gray-300">กรมช่างโยธาทหารอากาศ</h2>
             <h3 class="text-md mb-8 text-gray-300">กรุณาเลือกประเภทระบบที่ต้องการเข้าใช้งาน</h3>
             
             <div class="space-y-4">
+                <a href="main.html?view=active_statuses" class="block w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-4 rounded-lg shadow-lg transition-all duration-300 ease-in-out transform hover:scale-105">
+                    สถานะกำลังพล<br><span class="text-sm font-medium opacity-90">ตรวจสอบสถานะกำลังพลปัจจุบันของแผนก</span>
+                </a>
+                <a href="daily.html" class="block w-full bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-3 px-4 rounded-lg shadow-lg transition-all duration-300 ease-in-out transform hover:scale-105">
+                    ระบบส่งยอดกำลังพลประจำวัน<br><span class="text-sm font-medium opacity-90">ส่งยอดและตรวจสอบสถานะกำลังพลรายวัน</span>
+                </a>
                 <a href="main.html" class="block w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-lg transition-all duration-300 ease-in-out transform hover:scale-105">
                     ระบบส่งยอดกำลังพลประจำสัปดาห์
                 </a>
-                <a href="daily.html" class="block w-full bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-3 px-4 rounded-lg shadow-lg transition-all duration-300 ease-in-out transform hover:scale-105">
-                    ระบบส่งยอดกำลังพลประจำวัน<br>(ตรวจสอบรายชื่อ น.ประทวน)
+                <a id="my-department-personnel-link" href="main.html?view=my_personnel" class="block w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 px-4 rounded-lg shadow-lg transition-all duration-300 ease-in-out transform hover:scale-105">
+                    <span id="my-department-personnel-title">ข้อมูลกำลังพลแผนก</span><br><span class="text-sm font-medium opacity-90">ดูรายชื่อกำลังพลในแผนกของผู้ใช้งาน</span>
                 </a>
             </div>
 
@@ -51,6 +57,9 @@
                     <a href="main.html?view=holidays" class="block w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 px-4 rounded-lg shadow-lg transition-all duration-300 ease-in-out transform hover:scale-105">
                         จัดการวันหยุด
                     </a>
+                    <a href="main.html?view=backups" class="block w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg shadow-lg transition-all duration-300 ease-in-out transform hover:scale-105">
+                        สำรองฐานข้อมูล
+                    </a>
                  </div>
             </div>
         </div>
@@ -62,6 +71,7 @@
         </div>
     </div>
 
+    <script src="activity.js" defer></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const currentUserStr = localStorage.getItem('currentUser');
@@ -74,8 +84,17 @@
                 const currentUser = JSON.parse(currentUserStr);
                 const adminMenu = document.getElementById('admin-menu');
                 
+                const myDeptLink = document.getElementById('my-department-personnel-link');
+                const myDeptTitle = document.getElementById('my-department-personnel-title');
+                const departmentName = currentUser.department || 'ของผู้ใช้งาน';
+                if (myDeptTitle) {
+                    myDeptTitle.textContent = `ข้อมูลกำลังพลแผนก ${departmentName}`;
+                }
+
                 if (currentUser && currentUser.role === 'admin') {
                     adminMenu.classList.remove('hidden');
+                    // Admin มีหน้า “จัดการกำลังพล” อยู่แล้ว จึงซ่อนเมนูดูเฉพาะแผนกของตนเอง
+                    if (myDeptLink) myDeptLink.classList.add('hidden');
                 }
             } catch (e) {
                 console.error('Failed to parse user data, logging out.', e);

@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ตรวจสอบรายชื่อและทดสอบระบบ - ระบบส่งยอดกำลังพล</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        body.embedded-personnel-status header { display: none; }
+        body.embedded-personnel-status { background: #ffffff; }
+        body.embedded-personnel-status main { padding: 0; max-width: none; }
+        .taf025-preview-table { border-collapse: collapse; min-width: 2600px; table-layout: fixed; }
+        .taf025-preview-table th,
+        .taf025-preview-table td { border: 1px solid #0f172a; padding: 2px 4px; text-align: center; vertical-align: middle; height: 24px; font-size: 11px; line-height: 1.25; }
+        .taf025-preview-table .taf-label-cell { text-align: left; min-width: 190px; max-width: 230px; font-weight: 600; background: #f8fafc; position: sticky; left: 0; z-index: 4; }
+        .taf025-preview-table thead .taf-label-cell { z-index: 6; }
+        .taf025-preview-table .taf-group-header { background: #e2e8f0; font-weight: 700; }
+        .taf025-preview-table .taf-sub-header { background: #f1f5f9; font-weight: 700; writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; height: 94px; }
+        .taf025-preview-table .taf-section-row td { background: #dbeafe; font-weight: 700; text-align: left; }
+        .taf025-preview-table .taf-manual-row .taf-label-cell { background: #fff7ed; }
+        .taf025-preview-table .taf-manual-cell { background: #fffbeb; color: #92400e; }
+        .taf025-preview-table .taf-total-cell { background: #f8fafc; font-weight: 700; }
+        .taf025-preview-table .taf-zero-cell { color: #cbd5e1; }
+        .taf025-manual-input { width: 58px; min-width: 58px; border: 1px solid #f59e0b; border-radius: 4px; padding: 2px 3px; text-align: center; background: #fff; font-size: 11px; font-weight: 700; color: #78350f; }
+        .taf025-manual-input:focus { outline: 2px solid #fbbf24; border-color: #d97706; }
+        .taf025-validation-card { border-radius: 12px; padding: 12px 14px; font-size: 13px; }
+        .taf025-validation-ready { border: 1px solid #86efac; background: #f0fdf4; color: #166534; }
+        .taf025-validation-needs_review { border: 1px solid #fcd34d; background: #fffbeb; color: #92400e; }
+        .taf025-validation-incomplete { border: 1px solid #fca5a5; background: #fef2f2; color: #991b1b; }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen font-kanit text-slate-800">
+    <header class="bg-slate-900 text-white shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div>
+                    <h1 class="text-2xl font-bold">ตรวจสอบรายชื่อและทดสอบระบบ</h1>
+                    <p class="text-slate-300 text-sm mt-1">ตรวจยอดกำลังพลตามสถานภาพและชั้นยศแบบ ทอ.กพ.025 บนหน้าเว็บ</p>
+                </div>
+                <div class="flex flex-wrap items-center gap-3">
+                    <span id="user-info" class="text-sm text-slate-300"></span>
+                    <a href="selection.html" class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-lg font-medium transition">กลับหน้าเลือกระบบ</a>
+                    <button type="button" id="logout-btn" class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg font-medium transition">ออกจากระบบ</button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+        <section class="bg-white rounded-2xl shadow-md border border-slate-200 p-5">
+            <div class="flex flex-col lg:flex-row lg:items-end gap-4">
+                <div class="flex-1 min-w-[180px]">
+                    <label for="report-date-filter" class="block text-sm font-semibold text-slate-700 mb-1">วันที่รายงาน</label>
+                    <input id="report-date-filter" type="date" class="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                </div>
+                <div class="flex-1 min-w-[180px]">
+                    <label for="department-filter" class="block text-sm font-semibold text-slate-700 mb-1">แผนก</label>
+                    <select id="department-filter" class="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        <option value="">ทุกแผนก</option>
+                    </select>
+                </div>
+                <div class="flex-1 min-w-[180px]">
+                    <label for="category-filter" class="block text-sm font-semibold text-slate-700 mb-1">ประเภทกำลังพล</label>
+                    <select id="category-filter" class="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        <option value="">ทั้งหมด</option>
+                        <option value="officer">สัญญาบัตร</option>
+                        <option value="nco">ประทวน</option>
+                        <option value="permanent_employee">ลูกจ้างประจำ</option>
+                        <option value="government_employee">พนักงานราชการ</option>
+                        <option value="civilian">ข้อมูลเดิมที่ยังไม่แยกประเภท</option>
+                    </select>
+                </div>
+                <div class="flex-1 min-w-[180px]">
+                    <label for="status-filter" class="block text-sm font-semibold text-slate-700 mb-1">สถานะ</label>
+                    <select id="status-filter" class="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        <option value="">ทั้งหมด</option>
+                    </select>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    <button type="button" id="search-btn" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-5 py-2 rounded-lg shadow transition">ค้นหา</button>
+                    <button type="button" id="reset-filter-btn" class="bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold px-5 py-2 rounded-lg transition">ล้าง</button>
+                    <button type="button" id="export-note-excel-btn" class="hidden bg-green-600 hover:bg-green-700 text-white font-semibold px-5 py-2 rounded-lg shadow transition">ส่งออก Excel 11.ตอนหมายเหตุ</button>
+                </div>
+            </div>
+            <div class="mt-3 text-sm text-slate-500">
+                หมายเหตุ: Fix 47.5 ส่งออก Excel ทอ.กพ.025 เต็มไฟล์จาก template จริง โดยใช้ Snapshot ที่ตรวจแล้วเป็นแหล่งข้อมูลหลัก
+            </div>
+            <div id="warning-box" class="hidden mt-4"></div>
+        </section>
+
+        <section id="summary-cards" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4"></section>
+
+
+        <section class="bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden">
+            <div class="px-5 py-4 border-b border-slate-200 flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3">
+                <div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <h2 class="text-xl font-bold text-slate-800">Preview แบบฟอร์ม ทอ.กพ.025</h2>
+                        <span class="inline-flex px-2.5 py-1 rounded-full bg-blue-100 text-blue-800 text-xs font-bold">Fix 47.5 Template Export</span>
+                    </div>
+                    <p id="taf025-preview-meta" class="text-sm text-slate-500 mt-1"></p>
+                    <p class="text-xs text-slate-500 mt-1">แสดงตำแหน่งตาม mapping/template พร้อมช่องกรอกค่า manual, ตรวจสูตร, บันทึก Snapshot และส่งออก Excel เต็มแบบ</p>
+                    <p id="taf025-manual-save-status" class="text-xs text-slate-500 mt-1"></p>
+                </div>
+                <div class="flex flex-col sm:flex-row lg:items-start gap-2">
+                    <button type="button" id="save-taf025-manual-btn" class="hidden bg-amber-600 hover:bg-amber-700 text-white font-semibold px-4 py-2 rounded-lg shadow transition">บันทึกค่า ทอ.กพ.025</button>
+                    <button type="button" id="save-taf025-snapshot-btn" class="hidden bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded-lg shadow transition">ตรวจและบันทึก Snapshot</button>
+                    <button type="button" id="export-taf025-excel-btn" class="hidden bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2 rounded-lg shadow transition">ส่งออก Excel ทอ.กพ.025</button>
+                    <div class="text-xs text-slate-500 max-w-xl">
+                        ช่องสีเหลืองคือค่าที่ Admin แก้ได้ ให้บันทึกค่าและกดตรวจ Snapshot ก่อนส่งออก Excel ทอ.กพ.025
+                    </div>
+                </div>
+            </div>
+            <div id="taf025-preview-warnings" class="hidden mx-5 mt-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-900 text-sm"></div>
+            <div id="taf025-validation-panel" class="hidden mx-5 mt-4 taf025-validation-card"></div>
+            <div class="p-5 space-y-5">
+                <div class="overflow-x-auto border border-slate-300 rounded-xl bg-white">
+                    <table id="taf025-preview-table" class="taf025-preview-table w-full"></table>
+                </div>
+                <div>
+                    <div class="text-sm font-bold text-slate-700 mb-2">9. ตอนยอดกำลังแบ่งตามเพศ</div>
+                    <div class="overflow-x-auto border border-slate-300 rounded-xl bg-white">
+                        <table id="taf025-gender-preview-table" class="taf025-preview-table w-full"></table>
+                    </div>
+                    <p class="text-xs text-slate-500 mt-2">หมายเหตุ: ระบบส่งออก Excel จะยึดค่าใน Snapshot ล่าสุดที่มีสถานะพร้อมส่งออกเท่านั้น เพื่อป้องกันข้อมูลเปลี่ยนย้อนหลัง</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden">
+            <div class="px-5 py-4 border-b border-slate-200 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-800">ยอดรวมแบบ ทอ.กพ.025</h2>
+                    <p id="report-meta" class="text-sm text-slate-500 mt-1"></p><p id="taf025-matrix-helper" class="text-xs text-slate-500 mt-1"></p>
+                </div>
+                <div id="archive-badge" class="text-sm font-semibold"></div>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full text-sm">
+                    <thead class="bg-slate-50 text-slate-700">
+                        <tr id="rank-summary-head"></tr>
+                    </thead>
+                    <tbody id="rank-summary-body" class="divide-y divide-slate-100"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden">
+            <div class="px-5 py-4 border-b border-slate-200">
+                <h2 class="text-xl font-bold text-slate-800">รายชื่อกำลังพลตามสถานะ</h2>
+                <p id="detail-count" class="text-sm text-slate-500 mt-1"></p>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full text-sm">
+                    <thead class="bg-slate-50 text-slate-700">
+                        <tr>
+                            <th class="px-4 py-3 text-left font-semibold whitespace-nowrap">ลำดับ</th>
+                            <th class="px-4 py-3 text-left font-semibold whitespace-nowrap">ยศ-ชื่อ-สกุล</th>
+                            <th class="px-4 py-3 text-left font-semibold whitespace-nowrap">แผนก</th>
+                            <th class="px-4 py-3 text-left font-semibold whitespace-nowrap">ประเภท</th>
+                            <th class="px-4 py-3 text-left font-semibold whitespace-nowrap">เหล่า</th>
+                            <th class="px-4 py-3 text-left font-semibold whitespace-nowrap">ตำแหน่ง</th>
+                            <th class="px-4 py-3 text-left font-semibold whitespace-nowrap">สถานะ</th>
+                            <th class="px-4 py-3 text-left font-semibold whitespace-nowrap">รายละเอียด</th>
+                            <th class="px-4 py-3 text-left font-semibold whitespace-nowrap">วันที่เริ่ม</th>
+                            <th class="px-4 py-3 text-left font-semibold whitespace-nowrap">วันที่สิ้นสุด</th>
+                        </tr>
+                    </thead>
+                    <tbody id="detail-table-body" class="divide-y divide-slate-100"></tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <div id="loading-overlay" class="fixed inset-0 bg-black/40 hidden items-center justify-center z-50">
+        <div class="bg-white rounded-2xl p-6 shadow-xl text-center">
+            <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-600 mx-auto mb-3"></div>
+            <p class="font-semibold text-slate-700">กำลังโหลดข้อมูล...</p>
+        </div>
+    </div>
+
+    <script>
+        if (new URLSearchParams(window.location.search).get('embedded') === '1') {
+            document.body.classList.add('embedded-personnel-status');
+        }
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="activity.js?v=46" defer></script>
+    <script src="personnel_status.js?v=47.3"></script>
+</body>
+</html>

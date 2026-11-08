@@ -12,8 +12,8 @@ let editingReportData = null; // Holds report data when in edit mode
 let allDailyHistoryData = {}; // To store all history data for filtering
 
 // --- Color Constants ---
-const PERSISTENT_CHART_COLORS = { 'ว่าง': '#4CAF50', 'ราชการ': '#3B82F6', 'คุมงาน': '#6366F1', 'ศึกษา': '#8B5CF6', 'ลากิจ': '#EF4444', 'ลาพักผ่อน': '#10B981' };
-const STATUS_COLORS = { 'ราชการ': 'bg-blue-50', 'คุมงาน': 'bg-indigo-50', 'ศึกษา': 'bg-purple-50', 'ลากิจ': 'bg-red-50', 'ลาพักผ่อน': 'bg-green-50' };
+const PERSISTENT_CHART_COLORS = { 'ว่าง': '#4CAF50', 'ราชการ': '#3B82F6', 'คุมงาน': '#6366F1', 'ศึกษา': '#8B5CF6', 'ลากิจ': '#EF4444', 'ลาพักผ่อน': '#10B981', 'ลาป่วย': '#F59E0B', 'เกษียณอายุราชการ': '#6B7280' };
+const STATUS_COLORS = { 'ราชการ': 'bg-blue-50', 'คุมงาน': 'bg-indigo-50', 'ศึกษา': 'bg-purple-50', 'ลากิจ': 'bg-red-50', 'ลาพักผ่อน': 'bg-green-50', 'ลาป่วย': 'bg-yellow-50', 'เกษียณอายุราชการ': 'bg-gray-100' };
 
 // --- Auto Logout Feature ---
 let inactivityTimer;
@@ -286,7 +286,7 @@ function renderDailySubmissionForm(res) {
                 `;
                 
                 const statusSelect = row.querySelector('.status-select');
-                statusSelect.innerHTML = `<option value="ไม่มี">ไม่มี</option><option value="ราชการ">ราชการ</option><option value="คุมงาน">คุมงาน</option><option value="ศึกษา">ศึกษา</option><option value="ลากิจ">ลากิจ</option><option value="ลาพักผ่อน">ลาพักผ่อน</option>`;
+                statusSelect.innerHTML = `<option value="ไม่มี">ไม่มี</option><option value="ราชการ">ราชการ</option><option value="คุมงาน">คุมงาน</option><option value="ศึกษา">ศึกษา</option><option value="ลากิจ">ลากิจ</option><option value="ลาพักผ่อน">ลาพักผ่อน</option><option value="ลาป่วย">ลาป่วย</option><option value="เกษียณอายุราชการ">เกษียณอายุราชการ</option>`;
                 statusSelect.value = statusData.status || 'ไม่มี';
                 row.querySelector('.details-input').value = statusData.details || '';
 

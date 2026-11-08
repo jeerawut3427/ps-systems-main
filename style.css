@@ -70,3 +70,76 @@ body {
 .main-content-area {
     min-height: 60vh; /* 60% ของความสูงหน้าจอ */
 }
+
+/* =========================================================
+   Fix 42: Global readable tables / no unwanted line breaks
+   ใช้กับหน้าที่มีตารางรายชื่อกำลังพลและรายงานทั้งหมด
+   ========================================================= */
+.ps-app-shell {
+    width: min(1600px, 98vw);
+    max-width: 1600px;
+}
+#app-container .overflow-x-auto,
+.table-scroll,
+.ps-table-scroll {
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+    border-radius: 0.75rem;
+}
+#app-container table,
+.ps-readable-table {
+    width: max-content;
+    min-width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    table-layout: auto;
+}
+#app-container table th,
+#app-container table td,
+.ps-readable-table th,
+.ps-readable-table td {
+    white-space: nowrap !important;
+    word-break: keep-all !important;
+    overflow-wrap: normal !important;
+    vertical-align: middle;
+    line-height: 1.45;
+}
+#app-container table thead th,
+.ps-readable-table thead th {
+    background: #f8fafc;
+    color: #334155;
+    font-weight: 700;
+}
+#app-container table tbody tr:hover,
+.ps-readable-table tbody tr:hover {
+    background: #f8fafc;
+}
+#app-container table tbody td,
+.ps-readable-table tbody td {
+    border-bottom: 1px solid #e5e7eb;
+}
+#app-container table th:last-child,
+#app-container table td:last-child {
+    min-width: 135px;
+}
+.ps-nowrap-name,
+.ps-nowrap-cell,
+.ps-no-wrap {
+    white-space: nowrap !important;
+    word-break: keep-all !important;
+    overflow-wrap: normal !important;
+}
+.ps-wrap-detail,
+textarea,
+.details-input {
+    white-space: normal !important;
+    word-break: normal !important;
+    overflow-wrap: break-word !important;
+}
+#app-container input,
+#app-container select,
+#app-container button,
+#app-container .tab-button {
+    white-space: nowrap;
+}

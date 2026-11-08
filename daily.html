@@ -9,11 +9,69 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=42">
+
+    <style>
+        /* Fix 42: ตารางและรายชื่อแบบไม่ตกบรรทัดทุกหน้าหลัก */
+        :root { --ps-table-border: #e5e7eb; --ps-table-header: #f8fafc; }
+        .ps-app-shell { width: min(1600px, 98vw); max-width: 1600px; }
+        #app-container { overflow: visible; }
+        #app-container .overflow-x-auto {
+            overflow-x: auto;
+            overflow-y: hidden;
+            scrollbar-width: thin;
+            border-radius: 0.75rem;
+        }
+        #app-container table {
+            width: max-content;
+            min-width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            table-layout: auto;
+        }
+        #app-container table th,
+        #app-container table td {
+            white-space: nowrap !important;
+            word-break: keep-all !important;
+            overflow-wrap: normal !important;
+            vertical-align: middle;
+            line-height: 1.45;
+        }
+        #app-container table thead th {
+            background: var(--ps-table-header);
+            color: #334155;
+            font-weight: 700;
+        }
+        #app-container table tbody tr:hover { background: #f8fafc; }
+        #app-container table tbody td { border-bottom: 1px solid var(--ps-table-border); }
+        #app-container table th:first-child,
+        #app-container table td:first-child { padding-left: 1rem; }
+        #app-container table th:last-child,
+        #app-container table td:last-child { padding-right: 1rem; min-width: 135px; }
+        #app-container .ps-nowrap-name,
+        #app-container .ps-nowrap-cell,
+        #app-container .ps-no-wrap {
+            white-space: nowrap !important;
+            word-break: keep-all !important;
+            overflow-wrap: normal !important;
+        }
+        #app-container .ps-wrap-detail,
+        #app-container textarea,
+        #app-container .details-input {
+            white-space: normal !important;
+            word-break: normal !important;
+            overflow-wrap: break-word !important;
+        }
+        #app-container input,
+        #app-container select,
+        #app-container button,
+        #app-container .tab-button { white-space: nowrap; }
+
+    </style>
 </head>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
 
-    <div class="w-full max-w-7xl">
+    <div class="w-full ps-app-shell mx-auto">
         <div id="message-area" class="mb-4 text-center"></div>
         
         <article id="app-container" class="hidden bg-white p-8 rounded-xl shadow-lg">
@@ -33,6 +91,7 @@
                 <div class="flex space-x-4 overflow-x-auto pb-2" aria-label="Tabs">
                     <button id="tab-daily-dashboard" class="tab-button hidden whitespace-nowrap py-2 px-4 text-sm font-medium text-gray-500 hover:text-cyan-600 border-b-2 border-transparent">แดชบอร์ดประจำวัน</button>
                     <button id="tab-daily-submit" class="tab-button whitespace-nowrap py-2 px-4 text-sm font-medium text-gray-500 hover:text-cyan-600 border-b-2 border-transparent">ส่งยอดกำลังพล</button>
+                    <button id="tab-daily-status-overview" class="tab-button hidden whitespace-nowrap py-2 px-4 text-sm font-medium text-gray-500 hover:text-cyan-600 border-b-2 border-transparent">ตรวจสอบรายชื่อและทดสอบระบบ</button>
                     <button id="tab-daily-history" class="tab-button whitespace-nowrap py-2 px-4 text-sm font-medium text-gray-500 hover:text-cyan-600 border-b-2 border-transparent">ประวัติการส่ง</button>
                     <button id="tab-daily-report" class="tab-button hidden whitespace-nowrap py-2 px-4 text-sm font-medium text-gray-500 hover:text-cyan-600 border-b-2 border-transparent">ส่งรายงานประจำวัน</button>
                     <button id="tab-daily-archive" class="tab-button hidden whitespace-nowrap py-2 px-4 text-sm font-medium text-gray-500 hover:text-cyan-600 border-b-2 border-transparent">รายงานทั้งหมด</button>
@@ -54,6 +113,27 @@
                         <h2 id="daily-submit-title" class="text-xl font-semibold">ส่งยอดกำลังพลประจำวัน</h2>
                         <p id="daily-submit-date" class="text-lg text-gray-500"></p>
                     </div>
+
+                    <div id="daily-report-date-selector-wrapper" class="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <div class="flex flex-col md:flex-row md:items-end gap-3">
+                            <div>
+                                <label for="daily-report-date-selector" class="block text-sm font-medium text-blue-900 mb-1">วันที่รายงาน</label>
+                                <input id="daily-report-date-selector" type="date" class="border rounded px-3 py-2 bg-white shadow-sm">
+                            </div>
+                            <div class="text-sm text-blue-900">
+                                <p class="font-semibold">ส่งเฉพาะรอบรายวันปัจจุบัน</p>
+                                <p id="daily-advance-date-help" class="text-blue-700">ตามระเบียบไม่อนุญาตให้ผู้ใช้งานส่งยอดล่วงหน้า</p>
+                            </div>
+                        </div>
+                        <div id="daily-future-report-notice" class="hidden mt-3 rounded-lg border border-yellow-300 bg-yellow-50 text-yellow-900 p-3 text-sm"></div>
+                        <div id="daily-advance-status-wrapper" class="mt-4">
+                            <div class="flex items-center justify-between gap-2 mb-2">
+                                <p class="text-sm font-semibold text-blue-900">สถานะการส่งยอดตามวันที่ Admin เลือก</p>
+                                <p class="text-xs text-blue-700">สำหรับ Admin ใช้ตรวจสอบ/จัดการวันที่รายงาน</p>
+                            </div>
+                            <div id="daily-advance-status-list" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2"></div>
+                        </div>
+                    </div>
                     <div id="submission-info-area-daily" class="hidden text-center p-4 mb-4 bg-green-100 text-green-800 rounded-lg"></div>
                     <div id="admin-dept-selector-container-daily" class="mb-4"></div>
                     <div id="bulk-status-buttons-daily" class="mb-4 flex flex-wrap gap-2 border-b pb-4"></div>
@@ -70,8 +150,19 @@
                                 <div id="submission-list-nco" class="overflow-x-auto"></div>
                             </div>
 
-                            <div class="bg-gray-50 p-4 rounded-lg border">
-                                <h3 class="text-lg font-semibold text-gray-700 mb-2">พลเรือนและพนักงานราชการ <span id="summary-civilian" class="text-base font-normal text-gray-500"></span></h3>
+                            <div id="daily-permanent-employee-wrapper" class="bg-gray-50 p-4 rounded-lg border">
+                                <h3 class="text-lg font-semibold text-gray-700 mb-2">ลูกจ้างประจำ <span id="summary-permanent_employee" class="text-base font-normal text-gray-500"></span></h3>
+                                <div id="submission-list-permanent_employee" class="overflow-x-auto"></div>
+                            </div>
+
+                            <div id="daily-government-employee-wrapper" class="bg-gray-50 p-4 rounded-lg border">
+                                <h3 class="text-lg font-semibold text-gray-700 mb-2">พนักงานราชการ <span id="summary-government_employee" class="text-base font-normal text-gray-500"></span></h3>
+                                <div id="submission-list-government_employee" class="overflow-x-auto"></div>
+                            </div>
+
+                            <div id="daily-civilian-wrapper" class="bg-gray-50 p-4 rounded-lg border hidden">
+                                <h3 class="text-lg font-semibold text-gray-700 mb-2">ข้อมูลเดิมที่ยังไม่แยกประเภท <span id="summary-civilian" class="text-base font-normal text-gray-500"></span></h3>
+                                <p class="text-xs text-amber-700 mb-2">รายการนี้มาจากข้อมูลเก่าที่ใช้ นาย/นาง/นางสาว กรุณาแก้เป็น ลูกจ้างประจำ หรือ พนักงานราชการ ในหน้าจัดการกำลังพล</p>
                                 <div id="submission-list-civilian" class="overflow-x-auto"></div>
                             </div>
                         </div>
@@ -88,6 +179,8 @@
                         <div class="space-y-6">
                             <div id="review-list-area-officer"></div>
                             <div id="review-list-area-nco"></div>
+                            <div id="review-list-area-permanent_employee"></div>
+                            <div id="review-list-area-government_employee"></div>
                             <div id="review-list-area-civilian"></div>
                         </div>
                         <div class="mt-8 flex justify-end space-x-4">
@@ -97,11 +190,21 @@
                     </div>
                 </section>
 
+                <section id="pane-daily-status-overview" class="tab-pane hidden">
+                    <div class="mb-4">
+                        <h2 class="text-xl font-semibold text-gray-800">ตรวจสอบรายชื่อและทดสอบระบบ</h2>
+                        <p class="text-sm text-gray-500 mt-1">ตรวจสอบรายชื่อกำลังพลและทดสอบข้อมูลรายวันก่อนใช้งานจริง</p>
+                    </div>
+                    <div class="rounded-xl border border-gray-200 overflow-hidden bg-white">
+                        <iframe id="daily-status-overview-frame" title="ตรวจสอบรายชื่อและทดสอบระบบ" src="personnel_status.html?embedded=1&v=46" class="w-full min-h-[1050px] border-0"></iframe>
+                    </div>
+                </section>
+
                 <section id="pane-daily-history" class="tab-pane hidden">
                      <div class="flex justify-between items-center mb-6">
                         <h2 class="text-xl font-semibold">ประวัติการส่งรายงานย้อนหลัง</h2>
                     </div>
-                    <div class="flex items-center space-x-4 mb-6 p-4 bg-gray-50 rounded-lg">
+                    <div class="flex flex-wrap items-end gap-4 mb-6 p-4 bg-gray-50 rounded-lg">
                         <div>
                             <label for="daily-history-year-select" class="block text-sm font-medium text-gray-700">เลือกปี (พ.ศ.)</label>
                             <select id="daily-history-year-select" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"></select>
@@ -110,22 +213,32 @@
                             <label for="daily-history-month-select" class="block text-sm font-medium text-gray-700">เลือกเดือน</label>
                             <select id="daily-history-month-select" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"></select>
                         </div>
-                        <button id="show-daily-history-btn" class="self-end bg-indigo-500 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg">แสดงรายงาน</button>
+                        <div>
+                            <label for="daily-history-day-select" class="block text-sm font-medium text-gray-700">เลือกวัน</label>
+                            <select id="daily-history-day-select" class="mt-1 block w-full min-w-[220px] pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"></select>
+                        </div>
+                        <button id="show-daily-history-btn" class="bg-indigo-500 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg">แสดงรายงาน</button>
+                        <button id="export-daily-history-excel-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg">ส่งออก Excel</button>
                     </div>
                     <div id="daily-history-container" class="space-y-6"></div>
                 </section>
 
                 <section id="pane-daily-report" class="tab-pane hidden">
-                     <div class="flex justify-between items-center mb-6">
+                     <div class="flex flex-wrap justify-between items-center gap-3 mb-6">
                         <h2 class="text-xl font-semibold">ส่งรายงานประจำวัน</h2>
-                        <button id="export-daily-archive-btn" class="bg-gray-400 cursor-not-allowed text-white font-bold py-2 px-4 rounded-lg" disabled>ส่งออกและเก็บรายงาน</button>
+                        <div class="flex flex-wrap gap-2">
+                            <button id="auto-submit-all-daily-btn" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg">ส่งยอดทุกแผนกอัตโนมัติ</button>
+                            <button id="reset-daily-round-btn" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg">รีเซ็ตรอบรายวัน</button>
+                            <button id="export-daily-current-excel-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg" title="ส่งออก Excel เฉพาะชีต 11.ตอนหมายเหตุ">ส่งออก Excel 11.ตอนหมายเหตุ</button>
+                            <button id="export-daily-archive-btn" class="bg-gray-400 cursor-not-allowed text-white font-bold py-2 px-4 rounded-lg" disabled>ส่งออกและเก็บรายงาน</button>
+                        </div>
                     </div>
                     <div id="daily-report-container" class="space-y-6"></div>
                 </section>
 
                 <section id="pane-daily-archive" class="tab-pane hidden">
                      <h2 class="text-xl font-semibold mb-4">รายงานทั้งหมด</h2>
-                     <div class="flex items-center space-x-4 mb-6 p-4 bg-gray-50 rounded-lg">
+                     <div class="flex flex-wrap items-end gap-4 mb-6 p-4 bg-gray-50 rounded-lg">
                         <div>
                             <label for="daily-archive-year-select" class="block text-sm font-medium text-gray-700">เลือกปี (พ.ศ.)</label>
                             <select id="daily-archive-year-select" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"></select>
@@ -134,7 +247,12 @@
                             <label for="daily-archive-month-select" class="block text-sm font-medium text-gray-700">เลือกเดือน</label>
                             <select id="daily-archive-month-select" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"></select>
                         </div>
-                        <button id="show-daily-archive-btn" class="self-end bg-indigo-500 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg">แสดงรายงาน</button>
+                        <div>
+                            <label for="daily-archive-day-select" class="block text-sm font-medium text-gray-700">เลือกวัน</label>
+                            <select id="daily-archive-day-select" class="mt-1 block w-full min-w-[220px] pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"></select>
+                        </div>
+                        <button id="show-daily-archive-btn" class="bg-indigo-500 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg">แสดงรายงาน</button>
+                        <button id="export-daily-archive-excel-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg">ส่งออก Excel</button>
                     </div>
                     <div id="daily-archive-container" class="space-y-6"></div>
                 </section>
@@ -154,6 +272,41 @@
         </div>
     </div>
     
+
+    <div id="auto-submit-all-daily-modal" class="modal fixed inset-0 bg-gray-600 bg-opacity-50 z-20 items-center justify-center">
+        <div class="relative bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <h3 class="text-xl font-semibold mb-4 text-gray-800">ส่งยอดทุกแผนกอัตโนมัติ</h3>
+            <p class="text-gray-600 mb-3">
+                ระบบจะดึงสถานะภารกิจที่มีผลในวันที่รายงานปัจจุบันจากข้อมูลต่อเนื่องของแต่ละคน แล้วสร้างรายงานรายวันให้ครบทุกแผนก
+            </p>
+            <div class="bg-yellow-50 border border-yellow-300 text-yellow-800 rounded-lg p-3 text-sm mb-4">
+                <p class="font-semibold">ข้อควรระวัง</p>
+                <p>ถ้าวันนี้มีแผนกใดส่งรายงานไว้แล้ว ระบบจะเขียนทับรายงานรายวันของวันที่นี้ทั้งหมด แต่จะไม่ลบรายงานที่เก็บถาวรแล้ว</p>
+            </div>
+            <p id="auto-submit-all-daily-date-text" class="text-sm text-gray-500 mb-6"></p>
+            <div class="flex justify-end space-x-2">
+                <button id="cancel-auto-submit-all-daily-btn" type="button" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-bold hover:bg-gray-300">ยกเลิก</button>
+                <button id="confirm-auto-submit-all-daily-btn" type="button" class="px-4 py-2 bg-purple-600 text-white rounded-lg font-bold hover:bg-purple-700">ยืนยันส่งยอดทุกแผนก</button>
+            </div>
+        </div>
+    </div>
+
+
+    <div id="reset-daily-round-modal" class="modal fixed inset-0 bg-gray-600 bg-opacity-50 z-20 items-center justify-center">
+        <div class="relative bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <h3 class="text-xl font-semibold mb-4 text-gray-800">รีเซ็ตรอบรายวัน</h3>
+            <p class="text-gray-600 mb-4">
+                การรีเซ็ตจะล้างรายงานรายวันที่ค้างอยู่ทั้งหมดในรอบปัจจุบัน และให้ทุกแผนกส่งยอดใหม่ตามวันที่ที่กำหนด โดยไม่ลบรายงานที่เก็บถาวรแล้ว
+            </p>
+            <label for="daily-reset-date-input" class="block text-sm font-medium text-gray-700 mb-1">วันที่รายงานใหม่</label>
+            <input id="daily-reset-date-input" type="date" class="w-full border rounded px-3 py-2 mb-6">
+            <div class="flex justify-end space-x-2">
+                <button id="cancel-reset-daily-round-btn" type="button" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-bold hover:bg-gray-300">ยกเลิก</button>
+                <button id="confirm-reset-daily-round-btn" type="button" class="px-4 py-2 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700">ยืนยันรีเซ็ต</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         document.addEventListener('input', function(e) {
             if (e.target && e.target.classList.contains('details-input')) {
@@ -163,6 +316,8 @@
         });
     </script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-    <script src="daily.js" type="module" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="activity.js?v=46" defer></script>
+    <script src="daily.js?v=45" type="module" defer></script>
 </body>
 </html>

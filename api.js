@@ -28,6 +28,7 @@ export async function sendRequest(action, payload = {}) {
         if (!response.ok) {
             // กรณี Server แจ้ง Error (4xx, 5xx)
             let errorMessage = `เกิดข้อผิดพลาดจากเซิร์ฟเวอร์ (Status: ${response.status})`;
+            const errorStatus = response.status;
             
             if (isJson) {
                 // ถ้า Server ส่ง Error เป็น JSON ให้อ่าน message
@@ -50,6 +51,7 @@ export async function sendRequest(action, payload = {}) {
                     errorMessage = `เซิร์ฟเวอร์ตอบกลับผิดพลาด (${response.status})`;
                 }
             }
+            console.error('API request failed detail:', { action, status: errorStatus, payload, message: errorMessage });
             throw new Error(errorMessage);
         }
 
@@ -64,7 +66,7 @@ export async function sendRequest(action, payload = {}) {
         }
 
     } catch (error) {
-        console.error("API request failed:", error);
+        console.error("API request failed:", { action, payload, error });
         // ส่งต่อข้อความ Error ให้ UI นำไปแสดงผล
         throw new Error(error.message || 'การเชื่อมต่อกับเซิร์ฟเวอร์ล้มเหลว');
     }
